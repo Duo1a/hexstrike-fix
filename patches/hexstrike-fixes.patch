@@ -1,0 +1,113 @@
+--- hexstrike_server.py.bak_20261104	2025-09-19 16:33:13.000000000 -0400
++++ hexstrike_server.py	2026-11-04 02:49:07.611332939 -0500
+@@ -9095,10 +9095,72 @@
+     )
+     tools_status = {}
+ 
++    # Alias map: health-check names in the list above are logical names, not always
++    # the actual binary name on disk. Map them to their real executables.
++    TOOL_ALIASES = {
++        "volatility": ["vol", "vol.py"],
++        "volatility3": ["vol", "vol.py"],
++        "metasploit": ["msfconsole", "msfvenom"],
++        "exploit-db": ["searchsploit"],
++        "hashcat-utils": ["hashcat"],
++        "censys-cli": ["censys"],
++        "shodan-cli": ["shodan"],
++        "pwntools": ["pwn"],
++        "ropgadget": ["ROPgadget"],
++        "one-gadget": ["one_gadget"],
++        "libc-database": ["libc-database"],
++        "jwt-analyzer": ["jwt_tool", "jwt-analyzer"],
++        "hashpump": ["hashpump"],
++        "docker-bench-security": ["docker-bench-security"],
++        "graphql-scanner": ["jaeles"],
++        "api-schema-analyzer": ["swagger-cli"],
++        "have-i-been-pwned": ["pwned"],
++        "zsteg": ["zsteg"],
++        "stegsolve": ["stegsolve"],
++        "sleuthkit": ["fls", "icat", "tsk_recover"],
++        "bulk-extractor": ["bulk_extractor"],
++        "outguess": ["outguess"],
++        "zsteg": ["zsteg"],
++        "rustscan": ["rustscan"],
++        "gdb": ["gdb"],
++        "uro": ["uro"],
++        "x8": ["x8"],
++        "xsser": ["xsser"],
++        "pwninit": ["pwninit"],
++        "libc-database": ["libc-database", "libcdb"],
++        "jwt-analyzer": ["jwt_tool", "jwt-analyzer", "jwt_tool.py"],
++        "hashpump": ["hashpump", "hashpump.py"],
++        "have-i-been-pwned": ["pwned", "h8mail"],
++        "api-schema-analyzer": ["swagger-cli", "openapi-generator"],
++        "docker-bench-security": ["docker-bench-security", "docker_bench_security.sh"],
++        "stegsolve": ["stegsolve"],
++        "insomnia": ["insomnia"],
++        "postman": ["newman"],
++        "social-analyzer": ["social-analyzer"],
++        "prowler": ["prowler"],
++        "checkov": ["checkov"],
++        "terrascan": ["terrascan"],
++        "clair": ["clair"],
++        "falco": ["falco"],
++        "kube-hunter": ["kube-hunter"],
++        "kube-bench": ["kube-bench"],
++        "scout-suite": ["scout"],
++        "pwntools": ["pwn", "pwntools"],
++        "angr": ["angr"],
++        "one-gadget": ["one_gadget", "one-gadget"],
++        "hashcat-utils": ["hashcat", "hcstat2gen", "ntlmv1.py"],
++    }
++
+     for tool in all_tools:
+         try:
+-            result = execute_command(f"which {tool}", use_cache=True)
+-            tools_status[tool] = result["success"]
++            candidates = TOOL_ALIASES.get(tool, []) + [tool]
++            found = False
++            for cand in candidates:
++                result = execute_command(f"PATH=$PATH:$HOME/.local/bin:$HOME/go/bin:$HOME/.gem/ruby/3.3.0/bin which {cand}", use_cache=True)
++                if result.get("success"):
++                    found = True
++                    break
++            tools_status[tool] = found
+         except:
+             tools_status[tool] = False
+ 
+@@ -9195,7 +9257,7 @@
+         logger.error(f"💥 Error modifying file: {str(e)}")
+         return jsonify({"error": f"Server error: {str(e)}"}), 500
+ 
+-@app.route("/api/files/delete", methods=["DELETE"])
++@app.route("/api/files/delete", methods=["DELETE", "POST"])
+ def delete_file():
+     """Delete a file or directory"""
+     try:
+@@ -9494,8 +9556,11 @@
+             return jsonify({"error": "No data provided"}), 400
+ 
+         # Create summary report
+-        visual_engine = ModernVisualEngine()
+-        report = visual_engine.create_summary_report(data)
++        lines = [ModernVisualEngine.create_banner(),
++                 ModernVisualEngine.create_section_header("Scan Summary")]
++        for k, v in data.items():
++            lines.append(f"{k}: {v}")
++        report = "\n".join(lines)
+ 
+         return jsonify({
+             "success": True,
+@@ -13151,10 +13216,10 @@
+             logger.warning("🌐 httpx called without target parameter")
+             return jsonify({"error": "Target parameter is required"}), 400
+ 
+-        command = f"httpx -l {target} -t {threads}"
++        command = f"httpx -u {target} -threads {threads}"
+ 
+         if probe:
+-            command += " -probe"
++            command += " -silent"
+ 
+         if tech_detect:
+             command += " -tech-detect"
